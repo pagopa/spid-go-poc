@@ -9,6 +9,9 @@ import (
 	"errors"
 	"io/ioutil"
 	"text/template"
+
+	"github.com/beevik/etree"
+	xmlsec "github.com/crewjam/go-xmlsec"
 )
 
 // AttributeConsumingService defines, well, an AttributeConsumingService.
@@ -142,13 +145,36 @@ func (sp *SP) GetIDP(entityID string) (*IDP, error) {
 
 // Metadata generates XML metadata of this Service Provider.
 func (sp *SP) Metadata() string {
+
+	//digest := sha512.Sum512(sp.Cert().Raw) //TODO delete (?)
+
 	const tmpl = `<?xml version="1.0"?> 
 <md:EntityDescriptor 
     xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"  
     xmlns:ds="http://www.w3.org/2000/09/xmldsig#"  
+	xmlns:spid="https://spid.gov.it/saml-extensions"  
     entityID="{{.EntityID}}"  
     ID="_681a637-6cd4-434f-92c3-4fed720b2ad8"> 
-     
+	<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+    <ds:SignedInfo>
+      <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" />
+      <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha512" />
+      <ds:Reference URI="">
+        <ds:Transforms>
+          <ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" />
+          <ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" />
+        </ds:Transforms>
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+        <ds:DigestValue></ds:DigestValue>
+      </ds:Reference>
+    </ds:SignedInfo>
+    <ds:SignatureValue></ds:SignatureValue>
+    <ds:KeyInfo>
+      <ds:X509Data>
+        <ds:X509Certificate>{{ .Cert }}</ds:X509Certificate>
+      </ds:X509Data>
+    </ds:KeyInfo>
+  </ds:Signature>
     <md:SPSSODescriptor  
         protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol"  
         AuthnRequestsSigned="true"  
@@ -157,7 +183,7 @@ func (sp *SP) Metadata() string {
         <md:KeyDescriptor use="signing"> 
             <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"> 
                 <ds:X509Data> 
-                    <ds:X509Certificate>{{ .Cert }}</ds:X509Certificate> 
+                    <ds:X509Certificate>{{.Cert}}</ds:X509Certificate> 
                 </ds:X509Data> 
             </ds:KeyInfo> 
         </md:KeyDescriptor>
@@ -200,20 +226,53 @@ func (sp *SP) Metadata() string {
         <md:OrganizationURL xml:lang="it">{{ $url }}</md:OrganizationURL>
         {{ end }}
     </md:Organization>
+	<md:ContactPerson contactType="other">
+		<md:Extensions>
+			<spid:IPACode>c_h501</spid:IPACode>
+			<spid:Public/>
+		</md:Extensions>
+		<md:Company>Foobar</md:Company>
+		<md:EmailAddress>asd@example.com</md:EmailAddress>
+	</md:ContactPerson>
 
 </md:EntityDescriptor>
 `
 	aux := struct {
 		*SP
 		Cert string
+		// SignatureValue string
+		// Digest         string
 	}{
 		sp,
 		base64.StdEncoding.EncodeToString(sp.Cert().Raw),
+		// base64.StdEncoding.EncodeToString(signature),
+		// base64.StdEncoding.EncodeToString(digest[:]),
 	}
 
 	t := template.Must(template.New("metadata").Parse(tmpl))
 	var metadata bytes.Buffer
 	t.Execute(&metadata, aux)
 
-	return metadata.String()
+	// Arrivati qui abbiamo il Metadata SENZA la parte della Signature
+	//ripetiamo il processo di creazione del metadata unendo la parte della Signature
+
+	doc := etree.NewDocument()
+	metadataArr := metadata.Bytes()
+	doc.ReadFromBytes(metadataArr)
+
+	metadataSigned, err := xmlsec.Sign(sp.KeyPEM(), metadataArr, xmlsec.SignatureOptions{
+		XMLID: []xmlsec.XMLIDOption{
+			{
+				ElementName:      doc.Root().Tag,
+				ElementNamespace: "",
+				AttributeName:    "ID",
+			},
+		},
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	return string(metadataSigned)
 }

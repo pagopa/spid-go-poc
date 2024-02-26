@@ -1,0 +1,8 @@
+export COMMON_NAME="Example-One-Identity"
+export DAYS="3650"
+export ENTITY_ID="http://localhost:8000"
+export KEY_LEN="3072"
+export LOCALITY_NAME="Roma"
+export MD_ALG="sha512"
+export ORGANIZATION_IDENTIFIER="PA:IT-c_h501"
+export ORGANIZATION_NAME="OneIdentityCorp"

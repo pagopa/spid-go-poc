@@ -90,13 +90,13 @@ func (msg *outMessage) RedirectURL(baseurl string, xml []byte, param string) str
 	if msg.RelayState != "" {
 		query.Set("RelayState", msg.RelayState)
 	}
-	query.Set("SigAlg", "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256")
+	query.Set("SigAlg", "http://www.w3.org/2001/04/xmldsig-more#rsa-sha512")
 
 	// sign request
-	h := sha256.New()
+	h := sha512.New()
 	h.Write([]byte(query.Encode()))
 	d := h.Sum(nil)
-	signature, err := rsa.SignPKCS1v15(rand.Reader, msg.SP.Key(), crypto.SHA256, d)
+	signature, err := rsa.SignPKCS1v15(rand.Reader, msg.SP.Key(), crypto.SHA512, d)
 	if err != nil {
 		panic(err)
 	}
@@ -166,13 +166,13 @@ func (msg *outMessage) signatureTemplate() []byte {
  <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
     <ds:SignedInfo>
       <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" />
-      <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256" />
+      <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha512" />
       <ds:Reference URI="#{{ .Ref }}">
         <ds:Transforms>
           <ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" />
           <ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" />
         </ds:Transforms>
-        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" />
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
         <ds:DigestValue></ds:DigestValue>
       </ds:Reference>
     </ds:SignedInfo>
@@ -210,7 +210,7 @@ func (msg *inMessage) parse(r *http.Request, param string) error {
 		err = fmt.Errorf("Invalid HTTP method: %s", r.Method)
 	}
 
-	if (err != nil) {
+	if err != nil {
 		return err
 	}
 
@@ -310,7 +310,7 @@ func (msg *inMessage) validateSignatureForGet(param string, query url.Values) er
 	// Verify the signature
 	for _, cert := range msg.IDP.Certs {
 		err = rsa.VerifyPKCS1v15(cert.PublicKey.(*rsa.PublicKey), hashAlg, h, sig)
-		if (err == nil) {
+		if err == nil {
 			return nil
 		}
 	}

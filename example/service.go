@@ -28,7 +28,7 @@ var authnReqID, logoutReqID string
 func main() {
 	// Initialize our SPID object with information about this Service Provider
 	sp = &spidsaml.SP{
-		EntityID: "https://spid.comune.roma.it",
+		EntityID: "http://localhost:8000",
 		KeyFile:  "key.pem",
 		CertFile: "crt.pem",
 		AssertionConsumerServices: []string{
@@ -65,6 +65,7 @@ func main() {
 	http.HandleFunc("/spid-sso", spidSSO)
 	http.HandleFunc("/logout", spidLogout)
 	http.HandleFunc("/spid-slo", spidSLO)
+	// http.HandleFunc("/login/cb", spidLoginCb)
 
 	// Dance
 	fmt.Println("spid-go example application listening on http://localhost:8000")
@@ -127,6 +128,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 // This endpoint exposes our metadata
 func metadata(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/xml")
+	// RedirectURL
 	io.WriteString(w, sp.Metadata())
 }
 
@@ -142,7 +144,7 @@ func spidLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Craft the AuthnRequest.
 	authnreq := sp.NewAuthnRequest(idp)
-	//authnreq.AcsURL = "http://localhost:3000/spid-sso"
+	authnreq.AcsURL = "http://localhost:8000/spid-sso"
 	authnreq.AcsIndex = 0
 	authnreq.AttrIndex = 0
 	authnreq.Level = 1
@@ -312,3 +314,35 @@ func spidSLO(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 	}
 }
+
+// func spidLoginCb(w http.ResponseWriter, r *http.Request) {
+// 		// Parsa i parametri urlencoded
+// 		r.ParseForm()
+
+// 		// Autentica con SPID
+// 		// (Assumendo che tu abbia configurato passportOptions correttamente)
+// 		// passport.authenticate('spid', passportOptions)
+
+// 		// Ottieni il profilo utente
+// 		user := r.Context().Value(spid.UserContextKey).(spid.SamlSpidProfile)
+
+// 		// Salva richiesta e risposta SAML
+// 		samlRequest := user.GetSamlRequestXML()
+// 		samlResponse := user.GetSamlResponseXML()
+
+// 		// Renderizza la pagina degli utenti
+// 		fmt.Fprintf(w, `
+// 			<!DOCTYPE html>
+// 			<html>
+// 			<head>
+// 				<title>User page</title>
+// 			</head>
+// 			<body>
+// 				<h1>%s</h1>
+// 				<pre>%s</pre>
+// 				<pre>%s</pre>
+// 			</body>
+// 			</html>
+// 		`, "User page", samlRequest, samlResponse)
+// 	http.Post(w, )
+// }
