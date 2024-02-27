@@ -148,6 +148,7 @@ func spidLogin(w http.ResponseWriter, r *http.Request) {
 	authnreq.AcsIndex = 0
 	authnreq.AttrIndex = 0
 	authnreq.Level = 1
+	authnreq.RelayState = "c67e986f-2a02-44ff-8c6f-09141ad275ab"
 
 	// Save the ID of the Authnreq so that we can check it in the response
 	// in order to prevent forgery.

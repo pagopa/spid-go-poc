@@ -71,16 +71,11 @@ func (authnreq *AuthnRequest) XML(binding SAMLBinding) []byte {
 
 	ForceAuthn="{{ if gt .Level 1 }}true{{ else }}false{{ end }}">
 	
-	<saml:Issuer
-NameQualifier="{{.SP.EntityID}}"
-        Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">{{.SP.EntityID}}</saml:Issuer>
+	<saml:Issuer NameQualifier="{{.SP.EntityID}}" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">{{.SP.EntityID}}</saml:Issuer>
 	{{ .SignatureTemplate }}
 
     <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" />
-    <samlp:RequestedAuthnContext Comparison="{{ .Comparison }}">
-        <saml:AuthnContextClassRef>
-            https://www.spid.gov.it/SpidL{{ .Level }}
-        </saml:AuthnContextClassRef>
+    <samlp:RequestedAuthnContext Comparison="{{ .Comparison }}"><saml:AuthnContextClassRef>https://www.spid.gov.it/SpidL{{.Level}}</saml:AuthnContextClassRef>
     </samlp:RequestedAuthnContext>
 </samlp:AuthnRequest>
 `

@@ -80,29 +80,31 @@ func (msg *outMessage) RedirectURL(baseurl string, xml []byte, param string) str
 	w2.Write([]byte(xml))
 	w2.Close()
 	w1.Close()
-
 	ret, err := url.Parse(baseurl)
 	if err != nil {
 		panic(err)
 	}
-	query := ret.Query()
-	query.Set(param, string(w.Bytes()))
-	if msg.RelayState != "" {
-		query.Set("RelayState", msg.RelayState)
+	// We can't depend on Query().set() as order matters for signing
+	query := ret.RawQuery
+	if len(query) > 0 {
+		query += "&SAMLRequest=" + url.QueryEscape(w.String())
+	} else {
+		query += "SAMLRequest=" + url.QueryEscape(w.String())
 	}
-	query.Set("SigAlg", "http://www.w3.org/2001/04/xmldsig-more#rsa-sha512")
-
+	if msg.RelayState != "" {
+		query += "&RelayState=" + msg.RelayState
+	}
+	query += "&SigAlg=" + url.QueryEscape("http://www.w3.org/2001/04/xmldsig-more#rsa-sha512")
 	// sign request
-	h := sha512.New()
-	h.Write([]byte(query.Encode()))
+	h := crypto.SHA512.New()
+	h.Write([]byte(query))
 	d := h.Sum(nil)
 	signature, err := rsa.SignPKCS1v15(rand.Reader, msg.SP.Key(), crypto.SHA512, d)
 	if err != nil {
 		panic(err)
 	}
-	query.Set("Signature", base64.StdEncoding.EncodeToString(signature))
-
-	ret.RawQuery = query.Encode()
+	query += "&Signature=" + url.QueryEscape(base64.StdEncoding.EncodeToString(signature))
+	ret.RawQuery = query
 	return ret.String()
 }
 
