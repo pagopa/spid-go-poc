@@ -85,24 +85,28 @@ func (msg *outMessage) RedirectURL(baseurl string, xml []byte, param string) str
 	if err != nil {
 		panic(err)
 	}
-	query := ret.Query()
-	query.Set(param, string(w.Bytes()))
-	if msg.RelayState != "" {
-		query.Set("RelayState", msg.RelayState)
+	// We can't depend on Query().set() as order matters for signing
+	query := ret.RawQuery
+	if len(query) > 0 {
+		query += "&SAMLRequest=" + url.QueryEscape(w.String())
+	} else {
+		query += "SAMLRequest=" + url.QueryEscape(w.String())
 	}
-	query.Set("SigAlg", "http://www.w3.org/2001/04/xmldsig-more#rsa-sha512")
-
+	if msg.RelayState != "" {
+		query += "&RelayState=" + msg.RelayState
+	}
+	query += "&SigAlg=" + url.QueryEscape("http://www.w3.org/2001/04/xmldsig-more#rsa-sha512")
 	// sign request
-	h := sha512.New()
-	h.Write([]byte(query.Encode()))
+	h := crypto.SHA512.New()
+	h.Write([]byte(query))
 	d := h.Sum(nil)
 	signature, err := rsa.SignPKCS1v15(rand.Reader, msg.SP.Key(), crypto.SHA512, d)
 	if err != nil {
 		panic(err)
 	}
-	query.Set("Signature", base64.StdEncoding.EncodeToString(signature))
+	query += "&Signature=" + url.QueryEscape(base64.StdEncoding.EncodeToString(signature))
 
-	ret.RawQuery = query.Encode()
+	ret.RawQuery = query
 	return ret.String()
 }
 
@@ -207,7 +211,7 @@ func (msg *inMessage) parse(r *http.Request, param string) error {
 	case "GET":
 		xml, err = parseGet(r, param)
 	default:
-		err = fmt.Errorf("Invalid HTTP method: %s", r.Method)
+		err = fmt.Errorf("invalid HTTP method: %s", r.Method)
 	}
 
 	if err != nil {
@@ -222,7 +226,7 @@ func (msg *inMessage) parse(r *http.Request, param string) error {
 func parseGet(r *http.Request, param string) ([]byte, error) {
 	samlEncoding := r.URL.Query().Get("SAMLEncoding")
 	if samlEncoding != "" && samlEncoding != "urn:oasis:names:tc:SAML:2.0:bindings:URL-Encoding:DEFLATE" {
-		return nil, errors.New("Invalid SAMLEncoding")
+		return nil, errors.New("invalid SAMLEncoding")
 	}
 
 	payload, err := base64.StdEncoding.DecodeString(r.URL.Query().Get(param))
@@ -263,7 +267,7 @@ func (msg *inMessage) validateSignature(r *http.Request, param string) error {
 		return msg.validateSignatureForGet(param, query)
 
 	default:
-		return fmt.Errorf("Invalid HTTP method: %s", r.Method)
+		return fmt.Errorf("invalid HTTP method: %s", r.Method)
 	}
 }
 
