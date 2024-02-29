@@ -3,10 +3,11 @@ package spidsaml
 import (
 	"crypto/rsa"
 	"crypto/x509"
-	"github.com/beevik/etree"
-	"github.com/crewjam/go-xmlsec"
 	"strings"
 	"testing"
+
+	"github.com/beevik/etree"
+	"github.com/crewjam/go-xmlsec"
 )
 
 func TestSP_Key(t *testing.T) {
@@ -85,7 +86,10 @@ func TestSP_Metadata(t *testing.T) {
 			name:      "Contains the right entityID",
 		},
 	}
-	metadata := sp.Metadata()
+	metadata, err := sp.Metadata()
+	if err != nil {
+		panic("Error retrieving metadata")
+	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if !strings.Contains(metadata, tc.attribute) {
@@ -98,7 +102,11 @@ func TestSP_Metadata(t *testing.T) {
 func TestSP_MetadataOrganization(t *testing.T) {
 	sp := createSPForTes()
 	doc := etree.NewDocument()
-	if doc.ReadFromString(sp.Metadata()) != nil {
+	metadata, err := sp.Metadata()
+	if err != nil {
+		panic("Error retrieving metadata")
+	}
+	if doc.ReadFromString(metadata) != nil {
 		panic("error occurred during parsing metadata file")
 	}
 
@@ -166,13 +174,24 @@ func TestSP_KeyPEM(t *testing.T) {
 
 	signatureOptions := xmlsec.SignatureOptions{}
 
-	signedDoc, errSign := xmlsec.Sign(sp.KeyPEM(), xml, signatureOptions)
+	spKeyPem, err := sp.KeyPEM()
+	if err != nil {
+		panic("Error retrieving Key PEM")
+	}
+
+	signedDoc, errSign := xmlsec.Sign(spKeyPem, xml, signatureOptions)
 
 	if errSign != nil {
 		t.Error("Error during signing phase:", errSign)
 	}
 
-	errVerify := xmlsec.Verify(sp.CertPEM(), signedDoc, signatureOptions)
+	spCertPem, err := sp.CertPEM()
+
+	if err != nil {
+		panic("Error during retrieving PEM certificate")
+	}
+
+	errVerify := xmlsec.Verify(spCertPem, signedDoc, signatureOptions)
 
 	if errVerify != nil {
 		t.Error("Error during verifing phase", errVerify)
@@ -208,20 +227,20 @@ func readCert(certFile string) (key *x509.Certificate, err interface{}) {
 	defer func() {
 		err = recover()
 	}()
-	sp := &SP {
+	sp := &SP{
 		CertFile: certFile,
 	}
-	return sp.Cert(), nil
+	return sp.Cert()
 }
 
 func readKey(keyFile string) (key *rsa.PrivateKey, err interface{}) {
 	defer func() {
 		err = recover()
 	}()
-	sp := &SP {
+	sp := &SP{
 		KeyFile: keyFile,
 	}
-	return sp.Key(), nil
+	return sp.Key()
 }
 
 func contains(array []string, value string) bool {
