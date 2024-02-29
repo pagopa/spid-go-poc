@@ -104,6 +104,7 @@ func (msg *outMessage) RedirectURL(baseurl string, xml []byte, param string) str
 		panic(err)
 	}
 	query += "&Signature=" + url.QueryEscape(base64.StdEncoding.EncodeToString(signature))
+
 	ret.RawQuery = query
 	return ret.String()
 }
@@ -209,7 +210,7 @@ func (msg *inMessage) parse(r *http.Request, param string) error {
 	case "GET":
 		xml, err = parseGet(r, param)
 	default:
-		err = fmt.Errorf("Invalid HTTP method: %s", r.Method)
+		err = fmt.Errorf("invalid HTTP method: %s", r.Method)
 	}
 
 	if err != nil {
@@ -224,7 +225,7 @@ func (msg *inMessage) parse(r *http.Request, param string) error {
 func parseGet(r *http.Request, param string) ([]byte, error) {
 	samlEncoding := r.URL.Query().Get("SAMLEncoding")
 	if samlEncoding != "" && samlEncoding != "urn:oasis:names:tc:SAML:2.0:bindings:URL-Encoding:DEFLATE" {
-		return nil, errors.New("Invalid SAMLEncoding")
+		return nil, errors.New("invalid SAMLEncoding")
 	}
 
 	payload, err := base64.StdEncoding.DecodeString(r.URL.Query().Get(param))
@@ -265,7 +266,7 @@ func (msg *inMessage) validateSignature(r *http.Request, param string) error {
 		return msg.validateSignatureForGet(param, query)
 
 	default:
-		return fmt.Errorf("Invalid HTTP method: %s", r.Method)
+		return fmt.Errorf("invalid HTTP method: %s", r.Method)
 	}
 }
 

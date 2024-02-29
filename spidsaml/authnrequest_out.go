@@ -72,6 +72,7 @@ func (authnreq *AuthnRequest) XML(binding SAMLBinding) []byte {
 	ForceAuthn="{{ if gt .Level 1 }}true{{ else }}false{{ end }}">
 	
 	<saml:Issuer NameQualifier="{{.SP.EntityID}}" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">{{.SP.EntityID}}</saml:Issuer>
+
 	{{ .SignatureTemplate }}
 
     <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" />

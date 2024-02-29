@@ -147,19 +147,19 @@ func spidLogin(w http.ResponseWriter, r *http.Request) {
 	authnreq.AcsURL = "http://localhost:8000/spid-sso"
 	authnreq.AcsIndex = 0
 	authnreq.AttrIndex = 0
-	authnreq.Level = 1
-	authnreq.RelayState = "c67e986f-2a02-44ff-8c6f-09141ad275ab"
+	authnreq.Level = 2
+	authnreq.RelayState = authnreq.ID
 
 	// Save the ID of the Authnreq so that we can check it in the response
 	// in order to prevent forgery.
 	authnReqID = authnreq.ID
 
 	// Uncomment the following lines to use the HTTP-POST binding instead of HTTP-Redirect:
-	//w.Write(authnreq.PostForm())
-	//return
+	w.Write(authnreq.PostForm())
+	return
 
 	// Redirect user to the IdP using its HTTP-Redirect binding.
-	http.Redirect(w, r, authnreq.RedirectURL(), http.StatusSeeOther)
+	// http.Redirect(w, r, authnreq.RedirectURL(), http.StatusSeeOther)
 }
 
 // This endpoint exposes an AssertionConsumerService for our Service Provider.
@@ -232,11 +232,11 @@ func spidLogout(w http.ResponseWriter, r *http.Request) {
 	logoutReqID = logoutreq.ID
 
 	// Uncomment the following line to use the HTTP-POST binding instead of HTTP-Redirect:
-	//w.Write(logoutreq.PostForm())
-	//return
+	w.Write(logoutreq.PostForm())
+	return
 
 	// Redirect user to the Identity Provider for logout.
-	http.Redirect(w, r, logoutreq.RedirectURL(), http.StatusSeeOther)
+	// http.Redirect(w, r, logoutreq.RedirectURL(), http.StatusSeeOther)
 }
 
 // This endpoint exposes a SingleLogoutService for our Service Provider, using
