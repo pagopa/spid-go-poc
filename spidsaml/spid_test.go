@@ -230,7 +230,13 @@ func readCert(certFile string) (key *x509.Certificate, err interface{}) {
 	sp := &SP{
 		CertFile: certFile,
 	}
-	return sp.Cert()
+
+	spCert, err := sp.Cert()
+	if err != nil {
+		panic("error reading certificate")
+	}
+
+	return spCert, err
 }
 
 func readKey(keyFile string) (key *rsa.PrivateKey, err interface{}) {
@@ -240,7 +246,11 @@ func readKey(keyFile string) (key *rsa.PrivateKey, err interface{}) {
 	sp := &SP{
 		KeyFile: keyFile,
 	}
-	return sp.Key()
+	spKey, err := sp.Key()
+	if err != nil {
+		panic("error reading key")
+	}
+	return spKey, err
 }
 
 func contains(array []string, value string) bool {

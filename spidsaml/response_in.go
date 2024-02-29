@@ -125,7 +125,7 @@ func (response *Response) validate(inResponseTo string) error {
 			return err
 		}
 		if now.After(notOnOrAfter) || now.Equal(notOnOrAfter) {
-			fmt.Println(string(response.XML))
+			// fmt.Println(string(response.XML))
 			return fmt.Errorf("Invalid NotOnOrAfter: '%s' (now: '%s')",
 				notOnOrAfter.Format(time.RFC3339), now.Format(time.RFC3339))
 		}

@@ -11,6 +11,10 @@ COPY . .
 
 RUN cd example && go get && go build -ldflags="-s -w"
 
+WORKDIR /go/src/spidsaml
+
+RUN go test -v
+
 FROM docker.io/golang:${GO_VERSION}
 RUN apk update && apk add xmlsec-dev libxml2-dev openssl-dev
 

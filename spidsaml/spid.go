@@ -80,6 +80,8 @@ func (sp *SP) Cert() (*x509.Certificate, error) {
 			return nil, err
 		}
 
+		err = errors.New("failed to decode certificate PEM")
+
 		block, _ := pem.Decode(byteValue)
 		if block == nil || block.Type != "CERTIFICATE" {
 			// panic("failed to parse certificate PEM")
@@ -99,9 +101,13 @@ func (sp *SP) Cert() (*x509.Certificate, error) {
 func (sp *SP) Key() (*rsa.PrivateKey, error) {
 	if sp._key == nil {
 		// read file as a byte array
-		byteValue, _ := ioutil.ReadFile(sp.KeyFile)
+		byteValue, err := ioutil.ReadFile(sp.KeyFile)
 
-		err := errors.New("failed to parse private key from Pem file")
+		if err != nil {
+			return nil, err
+		}
+
+		err = errors.New("failed to parse private key from Pem file")
 
 		block, _ := pem.Decode(byteValue)
 		if block == nil {

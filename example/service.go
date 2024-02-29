@@ -53,8 +53,8 @@ func main() {
 	// Load Identity Providers from their XML metadata
 	err := sp.LoadIDPMetadata("idp_metadata")
 	if err != nil {
-		fmt.Print("Failed to load IdP metadata: ")
-		fmt.Println(err)
+		// fmt.Print("Failed to load IdP metadata: ")
+		// fmt.Println(err)
 		return
 	}
 
@@ -203,7 +203,7 @@ func spidSSO(w http.ResponseWriter, r *http.Request) {
 
 	// In case of SSO failure, display an error page.
 	if err != nil {
-		fmt.Printf("Bad Response received: %s\n", err)
+		// fmt.Printf("Bad Response received: %s\n", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -211,7 +211,7 @@ func spidSSO(w http.ResponseWriter, r *http.Request) {
 	// Log response as required by the SPID rules.
 	// Hint: log it in a way that does not mangle whitespace preventing signature from
 	// being verified at a later time
-	fmt.Printf("SPID Response: %s\n", response.XML)
+	// fmt.Printf("SPID Response: %s\n", response.XML)
 
 	if response.Success() {
 		// Login successful! Initialize our application session and store
@@ -285,7 +285,7 @@ func spidSLO(w http.ResponseWriter, r *http.Request) {
 
 		// In case of SLO failure, display an error page.
 		if err != nil {
-			fmt.Printf("Bad LogoutResponse received: %s\n", err)
+			// fmt.Printf("Bad LogoutResponse received: %s\n", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -306,7 +306,7 @@ func spidSLO(w http.ResponseWriter, r *http.Request) {
 		logoutreq, err := sp.ParseLogoutRequest(r)
 
 		if err != nil {
-			fmt.Printf("Bad LogoutRequest received: %s\n", err)
+			// fmt.Printf("Bad LogoutRequest received: %s\n", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
