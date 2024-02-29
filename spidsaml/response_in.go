@@ -94,8 +94,8 @@ func (response *Response) validate(inResponseTo string) error {
 					},
 				},
 			})
-			if (err == nil) {
-				break;
+			if err == nil {
+				break
 			}
 		}
 		if err != nil {

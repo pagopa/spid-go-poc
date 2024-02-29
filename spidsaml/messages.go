@@ -80,7 +80,6 @@ func (msg *outMessage) RedirectURL(baseurl string, xml []byte, param string) str
 	w2.Write([]byte(xml))
 	w2.Close()
 	w1.Close()
-
 	ret, err := url.Parse(baseurl)
 	if err != nil {
 		panic(err)
