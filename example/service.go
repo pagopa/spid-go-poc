@@ -65,7 +65,6 @@ func main() {
 	http.HandleFunc("/spid-sso", spidSSO)
 	http.HandleFunc("/logout", spidLogout)
 	http.HandleFunc("/spid-slo", spidSLO)
-	// http.HandleFunc("/login/cb", spidLoginCb)
 
 	// Dance
 	fmt.Println("spid-go example application listening on http://localhost:8000")
@@ -129,7 +128,12 @@ func index(w http.ResponseWriter, r *http.Request) {
 func metadata(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/xml")
 	// RedirectURL
-	io.WriteString(w, sp.Metadata())
+	spMetadata, err := sp.Metadata()
+	if err != nil {
+		http.Error(w, "Error creating Metadata", http.StatusBadRequest)
+		return
+	}
+	io.WriteString(w, spMetadata)
 }
 
 // This endpoint initiates SSO through the user-chosen Identity Provider.
@@ -142,8 +146,13 @@ func spidLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	spNewAuthnRequest, err := sp.NewAuthnRequest(idp)
+	if err != nil {
+		http.Error(w, "Error creating AuthnRequest", http.StatusBadRequest)
+		return
+	}
 	// Craft the AuthnRequest.
-	authnreq := sp.NewAuthnRequest(idp)
+	authnreq := spNewAuthnRequest
 	authnreq.AcsURL = "http://localhost:8000/spid-sso"
 	authnreq.AcsIndex = 0
 	authnreq.AttrIndex = 0
@@ -155,11 +164,21 @@ func spidLogin(w http.ResponseWriter, r *http.Request) {
 	authnReqID = authnreq.ID
 
 	// Uncomment the following lines to use the HTTP-POST binding instead of HTTP-Redirect:
-	w.Write(authnreq.PostForm())
+	postForm, err := authnreq.PostForm()
+	if err != nil {
+		http.Error(w, "Error during HTTP-POST binding", http.StatusBadRequest)
+		return
+	}
+	w.Write(postForm)
 	return
 
-	// Redirect user to the IdP using its HTTP-Redirect binding.
-	// http.Redirect(w, r, authnreq.RedirectURL(), http.StatusSeeOther)
+	// // Redirect user to the IdP using its HTTP-Redirect binding.
+	// redirectURL, err := authnreq.RedirectURL()
+	// if err != nil {
+	// 	http.Error(w, "Error creating HTTP-Redirect binding", http.StatusBadRequest)
+	// 	return
+	// }
+	// http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
 
 // This endpoint exposes an AssertionConsumerService for our Service Provider.
@@ -232,7 +251,12 @@ func spidLogout(w http.ResponseWriter, r *http.Request) {
 	logoutReqID = logoutreq.ID
 
 	// Uncomment the following line to use the HTTP-POST binding instead of HTTP-Redirect:
-	w.Write(logoutreq.PostForm())
+	logutreqPostForm, err := logoutreq.PostForm()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Write(logutreqPostForm)
 	return
 
 	// Redirect user to the Identity Provider for logout.
@@ -310,40 +334,13 @@ func spidSLO(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Redirect user to the Identity Provider for logout.
-		http.Redirect(w, r, logoutres.RedirectURL(), http.StatusSeeOther)
+		logoutresRedirectURL, err := logoutres.RedirectURL()
+		if err != nil {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		http.Redirect(w, r, logoutresRedirectURL, http.StatusSeeOther)
 	} else {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 	}
 }
-
-// func spidLoginCb(w http.ResponseWriter, r *http.Request) {
-// 		// Parsa i parametri urlencoded
-// 		r.ParseForm()
-
-// 		// Autentica con SPID
-// 		// (Assumendo che tu abbia configurato passportOptions correttamente)
-// 		// passport.authenticate('spid', passportOptions)
-
-// 		// Ottieni il profilo utente
-// 		user := r.Context().Value(spid.UserContextKey).(spid.SamlSpidProfile)
-
-// 		// Salva richiesta e risposta SAML
-// 		samlRequest := user.GetSamlRequestXML()
-// 		samlResponse := user.GetSamlResponseXML()
-
-// 		// Renderizza la pagina degli utenti
-// 		fmt.Fprintf(w, `
-// 			<!DOCTYPE html>
-// 			<html>
-// 			<head>
-// 				<title>User page</title>
-// 			</head>
-// 			<body>
-// 				<h1>%s</h1>
-// 				<pre>%s</pre>
-// 				<pre>%s</pre>
-// 			</body>
-// 			</html>
-// 		`, "User page", samlRequest, samlResponse)
-// 	http.Post(w, )
-// }

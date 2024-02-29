@@ -21,7 +21,7 @@ func (sp *SP) ParseLogoutResponse(r *http.Request, inResponseTo string) (*Logout
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("%s\n", response.XML)
+	// fmt.Printf("%s\n", response.XML)
 	err = response.validate(r, inResponseTo)
 	if err != nil {
 		return nil, err

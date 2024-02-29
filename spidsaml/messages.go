@@ -50,14 +50,15 @@ func (msg *inMessage) SetXML(xml []byte) error {
 	return msg.doc.ReadFromBytes(xml)
 }
 
-func generateMessageID() string {
+func generateMessageID() (string, error) {
 	id := make([]byte, 16)
 	if _, err := rand.Reader.Read(id); err != nil {
-		panic(err)
+		// panic(err)
+		return "", err
 	}
 
 	// first character must not be a digit
-	return fmt.Sprintf("_%x", id)
+	return fmt.Sprintf("_%x", id), nil
 }
 
 func (msg *outMessage) IssueInstant() *time.Time {
@@ -73,7 +74,7 @@ func (msg *outMessage) IssueInstantString() string {
 }
 
 // RedirectURL crafts the URL to be used for sending the current message via a HTTPRedirect binding
-func (msg *outMessage) RedirectURL(baseurl string, xml []byte, param string) string {
+func (msg *outMessage) RedirectURL(baseurl string, xml []byte, param string) (string, error) {
 	w := &bytes.Buffer{}
 	w1 := base64.NewEncoder(base64.StdEncoding, w)
 	w2, _ := flate.NewWriter(w1, 9)
@@ -82,7 +83,8 @@ func (msg *outMessage) RedirectURL(baseurl string, xml []byte, param string) str
 	w1.Close()
 	ret, err := url.Parse(baseurl)
 	if err != nil {
-		panic(err)
+		// panic(err)
+		return "", err
 	}
 	// We can't depend on Query().set() as order matters for signing
 	query := ret.RawQuery
@@ -99,25 +101,38 @@ func (msg *outMessage) RedirectURL(baseurl string, xml []byte, param string) str
 	h := crypto.SHA512.New()
 	h.Write([]byte(query))
 	d := h.Sum(nil)
-	signature, err := rsa.SignPKCS1v15(rand.Reader, msg.SP.Key(), crypto.SHA512, d)
+	spKey, err := msg.SP.Key()
+
 	if err != nil {
-		panic(err)
+		return "", err
+	}
+
+	signature, err := rsa.SignPKCS1v15(rand.Reader, spKey, crypto.SHA512, d)
+	if err != nil {
+		// panic(err)
+		return "", err
 	}
 	query += "&Signature=" + url.QueryEscape(base64.StdEncoding.EncodeToString(signature))
 
 	ret.RawQuery = query
-	return ret.String()
+	return ret.String(), nil
 }
 
 // PostForm returns an HTML page with a JavaScript auto-post command that submits
 // the request to the Identity Provider in order to initiate their Single Sign-On.
 // In SAML words, this implements the HTTP-POST binding.
-func (msg *outMessage) PostForm(url string, xml []byte, param string) []byte {
+func (msg *outMessage) PostForm(url string, xml []byte, param string) ([]byte, error) {
 	// We need to get the name of the root element
 	doc := etree.NewDocument()
 	doc.ReadFromBytes(xml)
 
-	signedDoc, err := xmlsec.Sign(msg.SP.KeyPEM(), xml, xmlsec.SignatureOptions{
+	keyPem, err := msg.SP.KeyPEM()
+
+	if err != nil {
+		return nil, err
+	}
+
+	signedDoc, err := xmlsec.Sign(keyPem, xml, xmlsec.SignatureOptions{
 		XMLID: []xmlsec.XMLIDOption{
 			{
 				ElementName:      doc.Root().Tag,
@@ -127,7 +142,7 @@ func (msg *outMessage) PostForm(url string, xml []byte, param string) []byte {
 		},
 	})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	//os.Stdout.Write(signedDoc)
 
@@ -158,13 +173,20 @@ func (msg *outMessage) PostForm(url string, xml []byte, param string) []byte {
 
 	rv := bytes.Buffer{}
 	if err := tmpl.Execute(&rv, data); err != nil {
-		panic(err)
+		// panic(err)
+		return nil, err
 	}
 
-	return rv.Bytes()
+	return rv.Bytes(), nil
 }
 
-func (msg *outMessage) signatureTemplate() []byte {
+func (msg *outMessage) signatureTemplate() ([]byte, error) {
+
+	spCert, err := msg.SP.Cert()
+
+	if err != nil {
+		return nil, err
+	}
 	tmpl := template.Must(template.New("saml-post-form").Parse(`
  <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
     <ds:SignedInfo>
@@ -192,12 +214,12 @@ func (msg *outMessage) signatureTemplate() []byte {
 		Cert string
 	}{
 		msg.ID,
-		base64.StdEncoding.EncodeToString(msg.SP.Cert().Raw),
+		base64.StdEncoding.EncodeToString(spCert.Raw),
 	}
 
 	var rv bytes.Buffer
 	tmpl.Execute(&rv, data)
-	return rv.Bytes()
+	return rv.Bytes(), nil
 }
 
 func (msg *inMessage) parse(r *http.Request, param string) error {

@@ -25,16 +25,25 @@ func (sp *SP) NewLogoutRequest(session *Session) (*LogoutRequestOut, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.ID = generateMessageID()
+
+	reqMsgID, err := generateMessageID()
+	if err != nil {
+		return nil, err
+	}
+	req.ID = reqMsgID
 	req.Session = session
 	return req, nil
 }
 
 // XML generates the XML representation of this LogoutRequest
-func (logoutreq *LogoutRequestOut) XML(binding SAMLBinding) []byte {
+func (logoutreq *LogoutRequestOut) XML(binding SAMLBinding) ([]byte, error) {
 	var signatureTemplate string
 	if binding == HTTPPost {
-		signatureTemplate = string(logoutreq.signatureTemplate())
+		signatureTemplateByte, err := logoutreq.signatureTemplate()
+		if err != nil {
+			return nil, err
+		}
+		signatureTemplate = string(signatureTemplateByte)
 	}
 
 	data := struct {
@@ -79,16 +88,20 @@ func (logoutreq *LogoutRequestOut) XML(binding SAMLBinding) []byte {
 	t := template.Must(template.New("req").Parse(tmpl))
 	var metadata bytes.Buffer
 	t.Execute(&metadata, data)
-	return metadata.Bytes()
+	return metadata.Bytes(), nil
 }
 
 // RedirectURL returns the full URL of the Identity Provider where user should be
 // redirected in order to initiate their Single Logout. In SAML words, this
 // implements the HTTP-Redirect binding.
-func (logoutreq *LogoutRequestOut) RedirectURL() string {
+func (logoutreq *LogoutRequestOut) RedirectURL() (string, error) {
+	logoutreqXML, err := logoutreq.XML(HTTPRedirect)
+	if err != nil {
+		return "", err
+	}
 	return logoutreq.outMessage.RedirectURL(
 		logoutreq.IDP.SLOReqURLs[HTTPRedirect],
-		logoutreq.XML(HTTPRedirect),
+		logoutreqXML,
 		"SAMLRequest",
 	)
 }
@@ -96,10 +109,14 @@ func (logoutreq *LogoutRequestOut) RedirectURL() string {
 // PostForm returns an HTML page with a JavaScript auto-post command that submits
 // the request to the Identity Provider in order to initiate their Single Logout.
 // In SAML words, this implements the HTTP-POST binding.
-func (logoutreq *LogoutRequestOut) PostForm() []byte {
+func (logoutreq *LogoutRequestOut) PostForm() ([]byte, error) {
+	logoutreqXML, err := logoutreq.XML(HTTPPost)
+	if err != nil {
+		return nil, err
+	}
 	return logoutreq.outMessage.PostForm(
 		logoutreq.IDP.SLOReqURLs[HTTPPost],
-		logoutreq.XML(HTTPPost),
+		logoutreqXML,
 		"SAMLRequest",
 	)
 }

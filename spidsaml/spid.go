@@ -61,46 +61,53 @@ type Session struct {
 }
 
 // CertPEM returns the of this Service Provider. certificate in PEM format.
-func (sp *SP) CertPEM() []byte {
+func (sp *SP) CertPEM() ([]byte, error) {
 	byteValue, err := ioutil.ReadFile(sp.CertFile)
 	if err != nil {
-		panic(err)
+		// panic(err)
+		return nil, err
 	}
-	return byteValue
+	return byteValue, nil
 }
 
 // Cert returns the certificate of this Service Provider.
-func (sp *SP) Cert() *x509.Certificate {
+func (sp *SP) Cert() (*x509.Certificate, error) {
 	if sp._cert == nil {
 		// read file as a byte array
-		byteValue := sp.CertPEM()
+		byteValue, err := sp.CertPEM()
+
+		if err != nil {
+			return nil, err
+		}
 
 		block, _ := pem.Decode(byteValue)
 		if block == nil || block.Type != "CERTIFICATE" {
-			panic("failed to parse certificate PEM")
+			// panic("failed to parse certificate PEM")
+			return nil, err
 		}
 
-		var err error
 		sp._cert, err = x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			panic(err)
+			// panic(err)
+			return nil, err
 		}
 	}
-	return sp._cert
+	return sp._cert, nil
 }
 
 // Key returns the private key of this Service Provider
-func (sp *SP) Key() *rsa.PrivateKey {
+func (sp *SP) Key() (*rsa.PrivateKey, error) {
 	if sp._key == nil {
 		// read file as a byte array
 		byteValue, _ := ioutil.ReadFile(sp.KeyFile)
 
+		err := errors.New("failed to parse private key from Pem file")
+
 		block, _ := pem.Decode(byteValue)
 		if block == nil {
-			panic("failed to parse private key from PEM file " + sp.KeyFile)
+			// panic("failed to parse private key from PEM file " + sp.KeyFile)
+			return nil, err
 		}
-
-		var err error
 
 		switch block.Type {
 		case "RSA PRIVATE KEY":
@@ -119,20 +126,26 @@ func (sp *SP) Key() *rsa.PrivateKey {
 		}
 
 		if err != nil {
-			panic(err)
+			// panic(err)
+			return nil, err
 		}
 	}
-	return sp._key
+	return sp._key, nil
 }
 
 // KeyPEM returns the private key of this Service Provider in PEM format
-func (sp *SP) KeyPEM() []byte {
-	key := sp.Key()
+func (sp *SP) KeyPEM() ([]byte, error) {
+	key, err := sp.Key()
+
+	if err != nil {
+		return nil, err
+	}
+
 	var block = &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(key),
 	}
-	return pem.EncodeToMemory(block)
+	return pem.EncodeToMemory(block), nil
 }
 
 // GetIDP returns an IDP object representing the Identity Provider matching the given entityID.
@@ -144,7 +157,7 @@ func (sp *SP) GetIDP(entityID string) (*IDP, error) {
 }
 
 // Metadata generates XML metadata of this Service Provider.
-func (sp *SP) Metadata() string {
+func (sp *SP) Metadata() (string, error) {
 
 	//digest := sha512.Sum512(sp.Cert().Raw) //TODO delete (?)
 
@@ -237,16 +250,19 @@ func (sp *SP) Metadata() string {
 
 </md:EntityDescriptor>
 `
+
+	cert, err := sp.Cert()
+
+	if err != nil {
+		return "", err
+	}
+
 	aux := struct {
 		*SP
 		Cert string
-		// SignatureValue string
-		// Digest         string
 	}{
 		sp,
-		base64.StdEncoding.EncodeToString(sp.Cert().Raw),
-		// base64.StdEncoding.EncodeToString(signature),
-		// base64.StdEncoding.EncodeToString(digest[:]),
+		base64.StdEncoding.EncodeToString(cert.Raw),
 	}
 
 	t := template.Must(template.New("metadata").Parse(tmpl))
@@ -254,13 +270,15 @@ func (sp *SP) Metadata() string {
 	t.Execute(&metadata, aux)
 
 	// Arrivati qui abbiamo il Metadata SENZA la parte della Signature
-	//ripetiamo il processo di creazione del metadata unendo la parte della Signature
 
 	doc := etree.NewDocument()
 	metadataArr := metadata.Bytes()
 	doc.ReadFromBytes(metadataArr)
 
-	metadataSigned, err := xmlsec.Sign(sp.KeyPEM(), metadataArr, xmlsec.SignatureOptions{
+	keyPem, err := sp.KeyPEM()
+
+	// Firma del Metadata
+	metadataSigned, err := xmlsec.Sign(keyPem, metadataArr, xmlsec.SignatureOptions{
 		XMLID: []xmlsec.XMLIDOption{
 			{
 				ElementName:      doc.Root().Tag,
@@ -271,8 +289,9 @@ func (sp *SP) Metadata() string {
 	})
 
 	if err != nil {
-		panic(err)
+		// panic(err)
+		return "", err
 	}
 
-	return string(metadataSigned)
+	return string(metadataSigned), nil
 }

@@ -27,23 +27,32 @@ const (
 // Note that this method does not perform any network call, it just initializes
 // an object.
 func (sp *SP) NewLogoutResponse(logoutreq *LogoutRequestIn, status LogoutStatus) (*LogoutResponseOut, error) {
+	resID, err := generateMessageID()
+	if err != nil {
+		return nil, err
+	}
+
 	res := new(LogoutResponseOut)
 	res.SP = sp
-	var err error
 	res.IDP = logoutreq.IDP
 	if err != nil {
 		return nil, err
 	}
-	res.ID = generateMessageID()
+
+	res.ID = resID
 	res.InResponseTo = logoutreq.ID()
 	return res, nil
 }
 
 // XML generates the XML representation of this LogoutResponseOut
-func (logoutres *LogoutResponseOut) XML(binding SAMLBinding) []byte {
+func (logoutres *LogoutResponseOut) XML(binding SAMLBinding) ([]byte, error) {
 	var signatureTemplate string
 	if binding == HTTPPost {
-		signatureTemplate = string(logoutres.signatureTemplate())
+		signatureTemplateByte, err := logoutres.signatureTemplate()
+		if err != nil {
+			return nil, err
+		}
+		signatureTemplate = string(signatureTemplateByte)
 	}
 
 	data := struct {
@@ -93,16 +102,20 @@ func (logoutres *LogoutResponseOut) XML(binding SAMLBinding) []byte {
 	t := template.Must(template.New("req").Parse(tmpl))
 	var metadata bytes.Buffer
 	t.Execute(&metadata, data)
-	return metadata.Bytes()
+	return metadata.Bytes(), nil
 }
 
 // RedirectURL returns the full URL of the Identity Provider where user should be
 // redirected in order to continue their Single Logout. In SAML words, this
 // implements the HTTP-Redirect binding.
-func (logoutres *LogoutResponseOut) RedirectURL() string {
+func (logoutres *LogoutResponseOut) RedirectURL() (string, error) {
+	logoutresXML, err := logoutres.XML(HTTPRedirect)
+	if err != nil {
+		return "", err
+	}
 	return logoutres.outMessage.RedirectURL(
 		logoutres.IDP.SLOResURLs[HTTPRedirect],
-		logoutres.XML(HTTPRedirect),
+		logoutresXML,
 		"SAMLResponse",
 	)
 }
@@ -110,10 +123,14 @@ func (logoutres *LogoutResponseOut) RedirectURL() string {
 // PostForm returns an HTML page with a JavaScript auto-post command that submits
 // the request to the Identity Provider in order to complete their Single Logout.
 // In SAML words, this implements the HTTP-POST binding.
-func (logoutres *LogoutResponseOut) PostForm() []byte {
+func (logoutres *LogoutResponseOut) PostForm() ([]byte, error) {
+	logoutresXML, err := logoutres.XML(HTTPRedirect)
+	if err != nil {
+		return nil, err
+	}
 	return logoutres.outMessage.PostForm(
 		logoutres.IDP.SLOResURLs[HTTPPost],
-		logoutres.XML(HTTPPost),
+		logoutresXML,
 		"SAMLResponse",
 	)
 }
