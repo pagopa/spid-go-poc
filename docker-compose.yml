@@ -5,7 +5,10 @@ services:
     ports:
       - "8443:8443"
   web:
-    build: .
+    build:
+      context: .
+      args:
+        - BASE_PATH="v1"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000"]
       interval: 10s

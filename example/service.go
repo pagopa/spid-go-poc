@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io"
 	"net/http"
+	"os"
 
 	"github.com/f-lombardo/spid-go/spidsaml"
 )
@@ -27,15 +28,26 @@ var authnReqID, logoutReqID string
 
 func main() {
 	// Initialize our SPID object with information about this Service Provider
+	// lettura di variabile d'ambiente per il base path
+	base_path := os.Getenv("BASE_PATH") // qualcosa tipo v2
+	assertionConsumerService := "http://localhost:8000/spid-sso"
+	singleLogoutService := "http://localhost:8000/spid-slo"
+
+	if base_path != "" {
+		base_path = "/" + base_path
+		assertionConsumerService = "http://localhost:8000" + base_path + "/spid-sso"
+		singleLogoutService = "http://localhost:8000" + base_path + "/spid-slo"
+	}
+
 	sp = &spidsaml.SP{
-		EntityID: "http://localhost:8000",
+		EntityID: "http://localhost:8000" + base_path,
 		KeyFile:  "key.pem",
 		CertFile: "crt.pem",
 		AssertionConsumerServices: []string{
-			"http://localhost:8000/spid-sso",
+			assertionConsumerService,
 		},
 		SingleLogoutServices: map[string]spidsaml.SAMLBinding{
-			"http://localhost:8000/spid-slo": spidsaml.HTTPRedirect,
+			singleLogoutService: spidsaml.HTTPRedirect,
 		},
 		AttributeConsumingServices: []spidsaml.AttributeConsumingService{
 			{
@@ -58,16 +70,15 @@ func main() {
 		return
 	}
 
-	// Wire routes and endpoints of our example application
-	http.HandleFunc("/", index)
-	http.HandleFunc("/metadata", metadata)
-	http.HandleFunc("/spid-login", spidLogin)
-	http.HandleFunc("/spid-sso", spidSSO)
-	http.HandleFunc("/logout", spidLogout)
-	http.HandleFunc("/spid-slo", spidSLO)
+	http.HandleFunc(base_path+"/", index)
+	http.HandleFunc(base_path+"/metadata", metadata)
+	http.HandleFunc(base_path+"/spid-login", spidLogin)
+	http.HandleFunc(base_path+"/spid-sso", spidSSO)
+	http.HandleFunc(base_path+"/logout", spidLogout)
+	http.HandleFunc(base_path+"/spid-slo", spidSLO)
 
 	// Dance
-	fmt.Println("spid-go example application listening on http://localhost:8000")
+	fmt.Println("spid-go example application listening on http://localhost:8000" + base_path)
 	http.ListenAndServe(":8000", nil)
 }
 
@@ -109,17 +120,49 @@ const tmplUser = `<p>This page shows details about the currently logged user.</p
   {{ end }}
 </table>
 `
+const tmplUser_2 = `<p>This page shows details about the currently logged user.</p>
+<p><a class="btn btn-primary" href="/v1/logout">Logout</a></p>
+<h1>NameID:</h1>
+<p>{{ .NameID }}</p>
+<h2>SPID Level:</h2>
+<p>{{ .Level }}</p>
+<h2>Attributes</h2>
+<table>
+  <tr>
+    <th>Key</th>
+    <th>Value</th>
+  </tr>
+  {{ range $key, $val := .Attributes }}
+      <tr>
+        <td>{{ $key }}</td>
+        <td>{{ $val }}</td>
+	  </tr>
+  {{ end }}
+</table>
+`
 
 // If we have an active SPID session, display a page with user attributes,
 // otherwise show a generic login page containing the SPID button.
 func index(w http.ResponseWriter, r *http.Request) {
+	// lettura di variabile d'ambiente per il base path
+	base_path := os.Getenv("BASE_PATH") // qualcosa tipo v1
+
+	if base_path != "" {
+		base_path = "/" + base_path
+	}
 	t := template.Must(template.New("index").Parse(tmplLayout))
 	if spidSession == nil {
-		button := sp.GetButton("/spid-login?idp=%s")
+		button := sp.GetButton(base_path + "/spid-login?idp=%s")
 		t.Execute(w, template.HTML(button))
 	} else {
 		var t2 bytes.Buffer
-		template.Must(template.New("user").Parse(tmplUser)).Execute(&t2, spidSession)
+		tmpToUse := tmplUser
+
+		if base_path != "" {
+			tmpToUse = tmplUser_2
+		}
+
+		template.Must(template.New("user").Parse(tmpToUse)).Execute(&t2, spidSession)
 		t.Execute(w, template.HTML(t2.String()))
 	}
 }
@@ -151,9 +194,15 @@ func spidLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error creating AuthnRequest", http.StatusBadRequest)
 		return
 	}
+
+	base_path := os.Getenv("BASE_PATH") // qualcosa tipo v1
+	if base_path != "" {
+		base_path = "/" + base_path
+	}
+
 	// Craft the AuthnRequest.
 	authnreq := spNewAuthnRequest
-	authnreq.AcsURL = "http://localhost:8000/spid-sso"
+	authnreq.AcsURL = "http://localhost:8000" + base_path + "/spid-sso"
 	authnreq.AcsIndex = 0
 	authnreq.AttrIndex = 0
 	authnreq.Level = 2
@@ -224,7 +273,12 @@ func spidSSO(w http.ResponseWriter, r *http.Request) {
 		// TODO: handle SPID level upgrade:
 		// - does session ID remain the same? better assume it changes
 
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		base_path := os.Getenv("BASE_PATH") // qualcosa tipo v1
+		if base_path != "" {
+			base_path = "/" + base_path
+		}
+
+		http.Redirect(w, r, base_path+"/", http.StatusSeeOther)
 	} else {
 		fmt.Fprintf(w, "Authentication Failed: %s (%s)",
 			response.StatusMessage(), response.StatusCode2())
@@ -235,7 +289,11 @@ func spidSSO(w http.ResponseWriter, r *http.Request) {
 func spidLogout(w http.ResponseWriter, r *http.Request) {
 	// If we don't have an open SPID session, do nothing.
 	if spidSession == nil {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		base_path := os.Getenv("BASE_PATH") // qualcosa tipo v1
+		if base_path != "" {
+			base_path = "/" + base_path
+		}
+		http.Redirect(w, r, base_path+"/", http.StatusSeeOther)
 		return
 	}
 
@@ -268,8 +326,13 @@ func spidLogout(w http.ResponseWriter, r *http.Request) {
 // Identity Providers can direct both LogoutRequest and LogoutResponse messages
 // to this endpoint.
 func spidSLO(w http.ResponseWriter, r *http.Request) {
+	base_path := os.Getenv("BASE_PATH") // qualcosa tipo v1
+	if base_path != "" {
+		base_path = "/" + base_path
+	}
+
 	if spidSession == nil {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		http.Redirect(w, r, base_path+"/", http.StatusSeeOther)
 		return
 	}
 
@@ -299,7 +362,7 @@ func spidSLO(w http.ResponseWriter, r *http.Request) {
 		// if (logoutres.Status() == logoutres.Partial) { ... }
 
 		// Redirect user back to main page.
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		http.Redirect(w, r, base_path+"/", http.StatusSeeOther)
 	} else if r.Form.Get("SAMLRequest") != "" || r.URL.Query().Get("SAMLRequest") != "" {
 		// This is a LogoutRequest (IdP-initiated logout).
 

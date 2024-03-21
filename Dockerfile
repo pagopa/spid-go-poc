@@ -1,6 +1,8 @@
 ARG GO_VERSION=1.16-alpine
 
 FROM docker.io/golang:${GO_VERSION} as build
+ARG BASE_PATH
+ENV BASE_PATH "v1"
 
 WORKDIR /go/src
 
@@ -16,6 +18,8 @@ WORKDIR /go/src/spidsaml
 RUN go test -v
 
 FROM docker.io/golang:${GO_VERSION}
+ARG BASE_PATH
+ENV BASE_PATH "v1"
 RUN apk update && apk add xmlsec-dev libxml2-dev openssl-dev
 
 RUN mkdir /usr/local/bin/spid_go
